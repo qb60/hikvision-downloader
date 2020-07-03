@@ -7,8 +7,8 @@ user_password = 'qwer1234'
 # write logs to log files (False/True)
 write_logs = True
 
-path_to_video_archive = 'video/'
-base_path_to_log_file = 'video/'
+path_to_media_archive = 'media/'
+base_path_to_log_file = 'media/'
 
 MAX_BYTES_LOG_FILE_SIZE = 100000
 MAX_LOG_FILES_COUNT = 20
@@ -16,8 +16,6 @@ CAMERA_REBOOT_TIME_SECONDS = 90
 DELAY_BEFORE_CHECKING_AVAILABILITY_SECONDS = 30
 DEFAULT_TIMEOUT_SECONDS = 10
 DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS = 1
-
-video_file_extension = '.mp4'
 
 # ====================================================================
 
@@ -34,33 +32,37 @@ from src.log_wrapper import logging_wrapper
 from src.log_printer import *
 from src.utils import *
 
-MAX_VIDEOS_NUMBER_IN_ONE_REQUEST = 100  # не больше 200
+MAX_NUMBER_OF_FILES_IN_ONE_REQUEST = 100  # не больше 200
 log_file_name_pattern = '{}.log'
 LOGGER_NAME = 'hik_video_downloader'
 
 
 # ====================================================================
 
+class ContentType:
+    PHOTO = 'jpg'
+    VIDEO = 'mp4'
+
 
 def get_path_to_video_archive(cam_ip: str):
-    return path_to_video_archive + cam_ip + '/'
+    return path_to_media_archive + cam_ip + '/'
 
 
-def download_videos(auth_handler, cam_ip, utc_time_interval):
-    tracks = get_all_tracks(auth_handler, cam_ip, utc_time_interval)
-    download_tracks(tracks, auth_handler, cam_ip)
+def download_media(auth_handler, cam_ip, utc_time_interval, content_type):
+    tracks = get_all_tracks(auth_handler, cam_ip, utc_time_interval, content_type)
+    download_tracks(tracks, auth_handler, cam_ip, content_type)
 
 
 @logging_wrapper(before=LogPrinter.get_all_tracks)
-def get_all_tracks(auth_handler, cam_ip, utc_time_interval):
+def get_all_tracks(auth_handler, cam_ip, utc_time_interval, content_type):
     tracks = []
     while True:
-        answer = get_video_tracks_info(auth_handler, cam_ip, utc_time_interval)
+        answer = get_tracks_info(auth_handler, cam_ip, utc_time_interval, content_type)
         local_time_offset = utc_time_interval.local_time_offset
         if answer:
             new_tracks = CameraSdk.create_tracks_from_info(answer, local_time_offset)
             tracks += new_tracks
-            if len(new_tracks) < MAX_VIDEOS_NUMBER_IN_ONE_REQUEST:
+            if len(new_tracks) < MAX_NUMBER_OF_FILES_IN_ONE_REQUEST:
                 break
 
             last_track = tracks[-1]
@@ -73,24 +75,27 @@ def get_all_tracks(auth_handler, cam_ip, utc_time_interval):
 
 
 @logging_wrapper(after=LogPrinter.get_video_tracks_info)
-def get_video_tracks_info(auth_handler, cam_ip, utc_time_interval):
-    return CameraSdk.get_video_tracks_info(auth_handler, cam_ip, utc_time_interval, MAX_VIDEOS_NUMBER_IN_ONE_REQUEST)
+def get_tracks_info(auth_handler, cam_ip, utc_time_interval, content_type):
+    if content_type == ContentType.VIDEO:
+        return CameraSdk.get_video_tracks_info(auth_handler, cam_ip, utc_time_interval, MAX_NUMBER_OF_FILES_IN_ONE_REQUEST)
+    else:
+        return CameraSdk.get_photo_tracks_info(auth_handler, cam_ip, utc_time_interval, MAX_NUMBER_OF_FILES_IN_ONE_REQUEST)
 
 
 @logging_wrapper(before=LogPrinter.download_tracks)
-def download_tracks(tracks, auth_handler, cam_ip):
+def download_tracks(tracks, auth_handler, cam_ip, content_type):
     for track in tracks:
         # TODO retry only N times
         while True:
-            if download_file_with_retry(auth_handler, cam_ip, track):
+            if download_file_with_retry(auth_handler, cam_ip, track, content_type):
                 break
 
         time.sleep(DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS)
 
 
-def download_file_with_retry(auth_handler, cam_ip, track):
+def download_file_with_retry(auth_handler, cam_ip, track, content_type):
     start_time_text = track.get_time_interval().to_local_time().to_filename_text()
-    file_name = get_path_to_video_archive(cam_ip) + '/' + start_time_text + video_file_extension
+    file_name = get_path_to_video_archive(cam_ip) + '/' + start_time_text + '.' + content_type
     url_to_download = track.url_to_download()
 
     create_directory_for(file_name)
@@ -130,10 +135,10 @@ def init(cam_ip):
     CameraSdk.init(DEFAULT_TIMEOUT_SECONDS)
 
 
-def do_work(camera_ip, start_datetime_str, end_datetime_str, use_utc_time):
+def do_work(camera_ip, start_datetime_str, end_datetime_str, use_utc_time, content_type):
     logger = Logger.get_logger()
     try:
-        logger.info('Processing cam {}:'.format(camera_ip))
+        logger.info('Processing cam {}: downloading {}'.format(camera_ip, content_type))
         logger.info('{} time is used'.format("UTC" if use_utc_time else "Camera's local"))
 
         auth_type = CameraSdk.get_auth_type(camera_ip, user_name, user_password)
@@ -149,7 +154,7 @@ def do_work(camera_ip, start_datetime_str, end_datetime_str, use_utc_time):
 
         utc_time_interval = TimeInterval.from_string(start_datetime_str, end_datetime_str, local_time_offset).to_utc()
 
-        download_videos(auth_handler, camera_ip, utc_time_interval)
+        download_media(auth_handler, camera_ip, utc_time_interval, content_type)
 
     except requests.exceptions.ConnectionError as e:
         logger.error('Connection error: {}'.format(e))
@@ -160,7 +165,7 @@ def do_work(camera_ip, start_datetime_str, end_datetime_str, use_utc_time):
 
 def parse_parameters():
     usage = """
-  %(prog)s [-u] CAM_IP START_DATE START_TIME END_DATE END_TIME"""
+  %(prog)s [-u] [-p] CAM_IP START_DATE START_TIME END_DATE END_TIME"""
 
     epilog = """
 Examples:
@@ -175,6 +180,7 @@ Examples:
     parser.add_argument("END_DATE", help="end date of interval")
     parser.add_argument("END_TIME", help="end time of interval")
     parser.add_argument("-u", "--utc", help="use parameters as UTC time, otherwise use as camera's local time", action="store_true")
+    parser.add_argument("-p", "--photo", help="download photos instead of videos", action="store_true")
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -194,7 +200,9 @@ def main():
             start_datetime_str = parameters.START_DATE + ' ' + parameters.START_TIME
             end_datetime_str = parameters.END_DATE + ' ' + parameters.END_TIME
 
-            do_work(camera_ip, start_datetime_str, end_datetime_str, parameters.utc)
+            content_type = ContentType.PHOTO if parameters.photo else ContentType.VIDEO
+
+            do_work(camera_ip, start_datetime_str, end_datetime_str, parameters.utc, content_type)
 
         except KeyboardInterrupt:
             print('')

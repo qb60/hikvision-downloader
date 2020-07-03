@@ -1,6 +1,9 @@
 #!/bin/bash
 # use this script for merging all modules to a single file
 #
+
+main_file_name=media_download.py
+
 mkdir -p release
-utils/build.py ./video_download.py release/video_download.py
-chmod u+x release/video_download.py
+utils/build.py ./$main_file_name release/$main_file_name
+chmod u+x release/$main_file_name

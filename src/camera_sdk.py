@@ -15,25 +15,29 @@ from src.track import Track
 
 
 class AuthType:
-    BASIC = 1,
-    DIGEST = 2,
+    BASIC = 1
+    DIGEST = 2
     UNAUTHORISED = 3
 
 
 class CameraSdk:
     default_timeout_seconds = 10
     DEVICE_ERROR_CODE = 500
+
     __CAMERA_AVAILABILITY_TEST_PORT = 80
+    __VIDEO_TRACK_ID = 101
+    __PHOTO_TRACK_ID = 103
+
     # =============================== URLS ===============================
 
     __TIME_URL = '/ISAPI/System/time'
-    __SEARCH_VIDEO_URL = '/ISAPI/ContentMgmt/search/'
-    __DOWNLOAD_VIDEO_URL = '/ISAPI/ContentMgmt/download'
+    __SEARCH_MEDIA_URL = '/ISAPI/ContentMgmt/search/'
+    __DOWNLOAD_MEDIA_URL = '/ISAPI/ContentMgmt/download'
     __REBOOT_URL = '/ISAPI/System/reboot'
 
     # =============================== URLS ===============================
 
-    __SEARCH_VIDEO_XML = """\
+    __SEARCH_MEDIA_XML = """\
 <?xml version='1.0' encoding='utf-8'?>
 <CMSearchDescription>
     <searchID>18cc5217-3de6-408a-ac9f-2b80af05cadf</searchID>
@@ -142,7 +146,7 @@ class CameraSdk:
         playback_uri.text = file_uri
         request_data = ElementTree.tostring(request, encoding='utf8', method='xml')
 
-        url = cls.__get_service_url(cam_ip, cls.__DOWNLOAD_VIDEO_URL)
+        url = cls.__get_service_url(cam_ip, cls.__DOWNLOAD_MEDIA_URL)
         answer = requests.get(url=url, auth=auth_handler, data=request_data, stream=True, timeout=cls.default_timeout_seconds)
         if answer:
             with open(file_name, 'wb') as out_file:
@@ -171,14 +175,17 @@ class CameraSdk:
         return False
 
     @classmethod
-    def get_video_tracks_info(cls, auth_handler, cam_ip, utc_time_interval, max_videos):
-        request = ElementTree.fromstring(cls.__SEARCH_VIDEO_XML)
+    def get_tracks_info(cls, auth_handler, cam_ip, utc_time_interval, max_videos, track_id):
+        request = ElementTree.fromstring(cls.__SEARCH_MEDIA_XML)
 
         search_id = request.find('searchID')
         search_id.text = str(uuid.uuid1()).upper()
 
         max_results_count = request.find('maxResults')
         max_results_count.text = str(max_videos)
+
+        track_id_element = request.find('trackIDList').find('trackID')
+        track_id_element.text = str(track_id)
 
         time_span = request.find('timeSpanList').find('timeSpan')
 
@@ -191,9 +198,17 @@ class CameraSdk:
         end_time_element.text = end_time_tz_text
 
         request_data = ElementTree.tostring(request, encoding='utf8', method='xml')
-        answer = cls.__make_get_request(auth_handler, cam_ip, cls.__SEARCH_VIDEO_URL, request_data)
+        answer = cls.__make_get_request(auth_handler, cam_ip, cls.__SEARCH_MEDIA_URL, request_data)
 
         return answer
+
+    @classmethod
+    def get_video_tracks_info(cls, auth_handler, cam_ip, utc_time_interval, max_videos):
+        return cls.get_tracks_info(auth_handler, cam_ip, utc_time_interval, max_videos, cls.__VIDEO_TRACK_ID)
+
+    @classmethod
+    def get_photo_tracks_info(cls, auth_handler, cam_ip, utc_time_interval, max_videos):
+        return cls.get_tracks_info(auth_handler, cam_ip, utc_time_interval, max_videos, cls.__PHOTO_TRACK_ID)
 
     @classmethod
     def create_tracks_from_info(cls, answer, local_time_offset):

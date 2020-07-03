@@ -39,7 +39,7 @@ class TestParseTrackInfo(unittest.TestCase):
 
     def test_url_to_download(self):
         track = Track(self.default_track_text, self.default_local_time_offset)
-        expected_url = 'rtsp://10.226.39.51/Streaming/tracks/101/?name=ch01_00000000036000001'
+        expected_url = self.default_track_text
 
         self.assertEqual(expected_url, track.url_to_download())
 

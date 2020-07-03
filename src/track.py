@@ -64,4 +64,4 @@ class Track:
         return self._base_url
 
     def url_to_download(self):
-        return self.base_url() + '?name=' + self.name()
+        return self._text
