@@ -21,8 +21,34 @@ class AuthType:
 
 
 class CameraSdk:
+    class FileDownloadingResult:
+        OK = 1
+        ERROR = 2
+        DEVICE_ERROR = 3
+        TIMEOUT = 4
+
+        def __init__(self, result_type, text=""):
+            self.result_type = result_type
+            self.text = text
+
+        @classmethod
+        def ok(cls):
+            return cls(cls.OK)
+
+        @classmethod
+        def error(cls, text):
+            return cls(cls.ERROR, text)
+
+        @classmethod
+        def device_error(cls, text):
+            return cls(cls.DEVICE_ERROR, text)
+
+        @classmethod
+        def timeout(cls):
+            return cls(cls.TIMEOUT)
+
     default_timeout_seconds = 10
-    DEVICE_ERROR_CODE = 500
+    __DEVICE_ERROR_CODE = 500
 
     __CAMERA_AVAILABILITY_TEST_PORT = 80
     __VIDEO_TRACK_ID = 101
@@ -147,13 +173,26 @@ class CameraSdk:
         request_data = ElementTree.tostring(request, encoding='utf8', method='xml')
 
         url = cls.__get_service_url(cam_ip, cls.__DOWNLOAD_MEDIA_URL)
-        answer = requests.get(url=url, auth=auth_handler, data=request_data, stream=True, timeout=cls.default_timeout_seconds)
-        if answer:
-            with open(file_name, 'wb') as out_file:
-                shutil.copyfileobj(answer.raw, out_file)
-            answer.close()
+        try:
+            answer = requests.get(url=url, auth=auth_handler, data=request_data, stream=True, timeout=cls.default_timeout_seconds)
+            if answer:
+                with open(file_name, 'wb') as out_file:
+                    shutil.copyfileobj(answer.raw, out_file)
+                answer.close()
+                return cls.FileDownloadingResult.ok()
+            else:
+                return cls.get_file_downloading_result_error(answer)
 
-        return answer
+        except requests.exceptions.Timeout:
+            return cls.FileDownloadingResult.timeout()
+
+    @classmethod
+    def get_file_downloading_result_error(cls, answer):
+        error_text = cls.get_error_message_from(answer)
+        if answer.status_code == CameraSdk.__DEVICE_ERROR_CODE:
+            return cls.FileDownloadingResult.device_error(error_text)
+        else:
+            return cls.FileDownloadingResult.error(error_text)
 
     @classmethod
     def wait_until_camera_rebooted(cls, cam_ip, camera_reboot_time_seconds, delay_before_checking_availability_seconds):

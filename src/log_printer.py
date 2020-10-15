@@ -28,9 +28,11 @@ class LogPrinter:
 
     @staticmethod
     def download_file_after(result):
-        if not result:
-            error_message = CameraSdk.get_error_message_from(result)
-            Logger.get_logger().error(error_message)
+        if result.result_type != CameraSdk.FileDownloadingResult.OK:
+            if result.result_type == CameraSdk.FileDownloadingResult.TIMEOUT:
+                Logger.get_logger().error("Timeout during file downloading")
+            else:
+                Logger.get_logger().error(result.text)
 
     @staticmethod
     def reboot_camera(_1, _2):

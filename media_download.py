@@ -14,7 +14,7 @@ MAX_BYTES_LOG_FILE_SIZE = 100000
 MAX_LOG_FILES_COUNT = 20
 CAMERA_REBOOT_TIME_SECONDS = 90
 DELAY_BEFORE_CHECKING_AVAILABILITY_SECONDS = 30
-DEFAULT_TIMEOUT_SECONDS = 10
+DEFAULT_TIMEOUT_SECONDS = 15
 DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS = 1
 
 # ====================================================================
@@ -99,11 +99,12 @@ def download_file_with_retry(auth_handler, cam_ip, track, content_type):
     url_to_download = track.url_to_download()
 
     create_directory_for(file_name)
-    answer = download_file(auth_handler, cam_ip, url_to_download, file_name)
-    if answer:
+
+    status = download_file(auth_handler, cam_ip, url_to_download, file_name)
+    if status.result_type == CameraSdk.FileDownloadingResult.OK:
         return True
     else:
-        if answer.status_code == CameraSdk.DEVICE_ERROR_CODE:
+        if status.result_type == CameraSdk.FileDownloadingResult.DEVICE_ERROR:
             reboot_camera(auth_handler, cam_ip)
             wait_until_camera_rebooted(cam_ip)
         return False

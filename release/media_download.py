@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# 2020-07-03
+# 2020-10-15
 
 # ====== Parameters ======
 user_name = 'admin'
@@ -15,7 +15,7 @@ MAX_BYTES_LOG_FILE_SIZE = 100000
 MAX_LOG_FILES_COUNT = 20
 CAMERA_REBOOT_TIME_SECONDS = 90
 DELAY_BEFORE_CHECKING_AVAILABILITY_SECONDS = 30
-DEFAULT_TIMEOUT_SECONDS = 10
+DEFAULT_TIMEOUT_SECONDS = 15
 DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS = 1
 
 # ====================================================================
@@ -186,8 +186,34 @@ class AuthType:
 
 
 class CameraSdk:
+    class FileDownloadingResult:
+        OK = 1
+        ERROR = 2
+        DEVICE_ERROR = 3
+        TIMEOUT = 4
+
+        def __init__(self, result_type, text=""):
+            self.result_type = result_type
+            self.text = text
+
+        @classmethod
+        def ok(cls):
+            return cls(cls.OK)
+
+        @classmethod
+        def error(cls, text):
+            return cls(cls.ERROR, text)
+
+        @classmethod
+        def device_error(cls, text):
+            return cls(cls.DEVICE_ERROR, text)
+
+        @classmethod
+        def timeout(cls):
+            return cls(cls.TIMEOUT)
+
     default_timeout_seconds = 10
-    DEVICE_ERROR_CODE = 500
+    __DEVICE_ERROR_CODE = 500
 
     __CAMERA_AVAILABILITY_TEST_PORT = 80
     __VIDEO_TRACK_ID = 101
@@ -312,13 +338,26 @@ class CameraSdk:
         request_data = ElementTree.tostring(request, encoding='utf8', method='xml')
 
         url = cls.__get_service_url(cam_ip, cls.__DOWNLOAD_MEDIA_URL)
-        answer = requests.get(url=url, auth=auth_handler, data=request_data, stream=True, timeout=cls.default_timeout_seconds)
-        if answer:
-            with open(file_name, 'wb') as out_file:
-                shutil.copyfileobj(answer.raw, out_file)
-            answer.close()
+        try:
+            answer = requests.get(url=url, auth=auth_handler, data=request_data, stream=True, timeout=cls.default_timeout_seconds)
+            if answer:
+                with open(file_name, 'wb') as out_file:
+                    shutil.copyfileobj(answer.raw, out_file)
+                answer.close()
+                return cls.FileDownloadingResult.ok()
+            else:
+                return cls.get_file_downloading_result_error(answer)
 
-        return answer
+        except requests.exceptions.Timeout:
+            return cls.FileDownloadingResult.timeout()
+
+    @classmethod
+    def get_file_downloading_result_error(cls, answer):
+        error_text = cls.get_error_message_from(answer)
+        if answer.status_code == CameraSdk.__DEVICE_ERROR_CODE:
+            return cls.FileDownloadingResult.device_error(error_text)
+        else:
+            return cls.FileDownloadingResult.error(error_text)
 
     @classmethod
     def wait_until_camera_rebooted(cls, cam_ip, camera_reboot_time_seconds, delay_before_checking_availability_seconds):
@@ -504,9 +543,11 @@ class LogPrinter:
 
     @staticmethod
     def download_file_after(result):
-        if not result:
-            error_message = CameraSdk.get_error_message_from(result)
-            Logger.get_logger().error(error_message)
+        if result.result_type != CameraSdk.FileDownloadingResult.OK:
+            if result.result_type == CameraSdk.FileDownloadingResult.TIMEOUT:
+                Logger.get_logger().error("Timeout during file downloading")
+            else:
+                Logger.get_logger().error(result.text)
 
     @staticmethod
     def reboot_camera(_1, _2):
@@ -597,11 +638,12 @@ def download_file_with_retry(auth_handler, cam_ip, track, content_type):
     url_to_download = track.url_to_download()
 
     create_directory_for(file_name)
-    answer = download_file(auth_handler, cam_ip, url_to_download, file_name)
-    if answer:
+
+    status = download_file(auth_handler, cam_ip, url_to_download, file_name)
+    if status.result_type == CameraSdk.FileDownloadingResult.OK:
         return True
     else:
-        if answer.status_code == CameraSdk.DEVICE_ERROR_CODE:
+        if status.result_type == CameraSdk.FileDownloadingResult.DEVICE_ERROR:
             reboot_camera(auth_handler, cam_ip)
             wait_until_camera_rebooted(cam_ip)
         return False
