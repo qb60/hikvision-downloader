@@ -16,6 +16,7 @@ CAMERA_REBOOT_TIME_SECONDS = 90
 DELAY_BEFORE_CHECKING_AVAILABILITY_SECONDS = 30
 DEFAULT_TIMEOUT_SECONDS = 15
 DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS = 1
+DELAY_AFTER_TIMEOUT_SECONDS = 5
 
 # ====================================================================
 
@@ -89,6 +90,8 @@ def download_tracks(tracks, auth_handler, cam_ip, content_type):
         while True:
             if download_file_with_retry(auth_handler, cam_ip, track, content_type):
                 break
+            else:
+                time.sleep(DELAY_AFTER_TIMEOUT_SECONDS)
 
         time.sleep(DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS)
 

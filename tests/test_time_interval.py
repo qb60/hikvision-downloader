@@ -1,6 +1,6 @@
 import unittest
 
-from tests.test_utils import TestUtils
+from test_utils import TestUtils
 from src.time_interval import TimeInterval
 from datetime import timedelta
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# 2020-10-15
+# 2022-05-24
 
 # ====== Parameters ======
 user_name = 'admin'
@@ -17,6 +17,7 @@ CAMERA_REBOOT_TIME_SECONDS = 90
 DELAY_BEFORE_CHECKING_AVAILABILITY_SECONDS = 30
 DEFAULT_TIMEOUT_SECONDS = 15
 DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS = 1
+DELAY_AFTER_TIMEOUT_SECONDS = 5
 
 # ====================================================================
 
@@ -348,7 +349,7 @@ class CameraSdk:
             else:
                 return cls.get_file_downloading_result_error(answer)
 
-        except requests.exceptions.Timeout:
+        except (requests.exceptions.Timeout, requests.packages.urllib3.exceptions.TimeoutError):
             return cls.FileDownloadingResult.timeout()
 
     @classmethod
@@ -628,6 +629,8 @@ def download_tracks(tracks, auth_handler, cam_ip, content_type):
         while True:
             if download_file_with_retry(auth_handler, cam_ip, track, content_type):
                 break
+            else:
+                time.sleep(DELAY_AFTER_TIMEOUT_SECONDS)
 
         time.sleep(DELAY_BETWEEN_DOWNLOADING_FILES_SECONDS)
 

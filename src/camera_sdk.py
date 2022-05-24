@@ -183,7 +183,7 @@ class CameraSdk:
             else:
                 return cls.get_file_downloading_result_error(answer)
 
-        except requests.exceptions.Timeout:
+        except (requests.exceptions.Timeout, requests.packages.urllib3.exceptions.TimeoutError):
             return cls.FileDownloadingResult.timeout()
 
     @classmethod
