@@ -33,7 +33,7 @@ from src.log_wrapper import logging_wrapper
 from src.log_printer import *
 from src.utils import *
 
-MAX_NUMBER_OF_FILES_IN_ONE_REQUEST = 100  # не больше 200
+MAX_NUMBER_OF_FILES_IN_ONE_REQUEST = 50  # не больше 200
 log_file_name_pattern = '{}.log'
 LOGGER_NAME = 'hik_video_downloader'
 
