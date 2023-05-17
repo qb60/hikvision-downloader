@@ -57,7 +57,7 @@ class CameraSdk:
     # =============================== URLS ===============================
 
     __TIME_URL = '/ISAPI/System/time'
-    __SEARCH_MEDIA_URL = '/ISAPI/ContentMgmt/search/'
+    __SEARCH_MEDIA_URL = '/ISAPI/ContentMgmt/search'
     __DOWNLOAD_MEDIA_URL = '/ISAPI/ContentMgmt/download'
     __REBOOT_URL = '/ISAPI/System/reboot'
 
@@ -237,7 +237,7 @@ class CameraSdk:
         end_time_element.text = end_time_tz_text
 
         request_data = ElementTree.tostring(request, encoding='utf8', method='xml')
-        answer = cls.__make_get_request(auth_handler, cam_ip, cls.__SEARCH_MEDIA_URL, request_data)
+        answer = cls.__make_post_request(auth_handler, cam_ip, cls.__SEARCH_MEDIA_URL, request_data)
 
         return answer
 
@@ -275,8 +275,12 @@ class CameraSdk:
         return re.sub(' xmlns="[^"]+"', '', xml_text, count=0)
 
     @classmethod
-    def __make_get_request(cls, auth_handler, cam_ip, url, request_data=None):
-        return requests.get(url=cls.__get_service_url(cam_ip, url), auth=auth_handler, data=request_data, timeout=cls.default_timeout_seconds)
+    def __make_get_request(cls, auth_handler, cam_ip, url):
+        return requests.get(url=cls.__get_service_url(cam_ip, url), auth=auth_handler, timeout=cls.default_timeout_seconds)
+
+    @classmethod
+    def __make_post_request(cls, auth_handler, cam_ip, url, request_data):
+        return requests.post(url=cls.__get_service_url(cam_ip, url), auth=auth_handler, data=request_data, timeout=cls.default_timeout_seconds)
 
     @staticmethod
     def __replace_subelement_with(parent, new_subelement):
