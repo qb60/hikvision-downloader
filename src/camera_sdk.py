@@ -144,7 +144,7 @@ class CameraSdk:
 
     @staticmethod
     def parse_timezone(raw_timezone):
-        timezone_text = raw_timezone.replace('CST', '')
+        timezone_text = raw_timezone[3:11]
         time_offset_parts = timezone_text.split(':')
         hours = int(time_offset_parts[0])
         minutes = int(time_offset_parts[1])
